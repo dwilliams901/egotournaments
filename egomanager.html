@@ -204,13 +204,19 @@ function PayoutView({ tournament }) {
     {place:3,amount:Math.floor(bracketPrize*0.10),pct:10},
   ] : [];
   const standings = buildStandings(bowlers, tournament);
+  const eventType = tournament.eventType||"singles";
+  const teamSize = eventType==="doubles" ? (tournament.teamSize||2) : eventType==="team" ? (tournament.teamSize||4) : 1;
+  const isTeamEvent = eventType!=="singles";
   return (
     <div>
+      {isTeamEvent&&<div className="alert al-info" style={{marginBottom:"1rem"}}>
+        <strong>{eventType.charAt(0).toUpperCase()+eventType.slice(1)} Event — {teamSize} bowlers per team.</strong> Entry fee is per individual. Payouts show total team prize and per-person split.
+      </div>}
       <div className="g2" style={{marginBottom:"1rem"}}>
         <div className="card">
           <div className="sec-head" style={{fontSize:14,marginBottom:".75rem"}}>Tournament Pool</div>
           <div className="g2" style={{marginBottom:8}}>
-            <div><div className="fl" style={{marginBottom:2}}>Entry Fee ($)</div><div style={{fontFamily:"var(--font-d)",fontSize:24}}>${entryFee}</div><div style={{fontSize:11,color:"var(--text2)"}}>Set in tournament setup</div></div>
+            <div><div className="fl" style={{marginBottom:2}}>Entry Fee ($)</div><div style={{fontFamily:"var(--font-d)",fontSize:24}}>${entryFee}</div><div style={{fontSize:11,color:"var(--text2)"}}>Per individual</div></div>
             <div><div className="fl" style={{marginBottom:2}}>Entries Paid</div><div style={{fontFamily:"var(--font-d)",fontSize:24}}>{paidEntries} <span style={{fontSize:14,color:"var(--text2)"}}>/ {bowlers.length}</span></div></div>
           </div>
           <div style={{background:"var(--surface)",borderRadius:"var(--r)",padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -255,19 +261,31 @@ function PayoutView({ tournament }) {
             </div>
           </div>
           {prizePool===0&&<div className="alert al-warn">Set an entry fee in tournament setup to see payouts.</div>}
+          {isTeamEvent&&<div style={{display:"flex",fontSize:10,fontWeight:700,letterSpacing:.5,textTransform:"uppercase",color:"var(--text2)",paddingBottom:4,borderBottom:"1px solid var(--border)",marginBottom:4,gap:10}}>
+            <div style={{width:36}}></div><div style={{flex:1}}></div>
+            <div style={{minWidth:36,textAlign:"right"}}>%</div>
+            <div style={{width:80,textAlign:"right"}}>Team Total</div>
+            <div style={{width:80,textAlign:"right",color:"var(--red)"}}>Per Person</div>
+            <div style={{minWidth:100}}></div>
+          </div>}
           {payouts.map(({place,amount,pct},i)=>{
             const winner=standings[i];
+            const perPerson=isTeamEvent?Math.floor(amount/teamSize):null;
             return(<div key={place} className="po-row">
               <div className={`po-place${place===1?" p1":""}`}>{place}</div>
               <div className="po-pct"><div className="po-fill" style={{width:`${pct}%`}}/></div>
               <div style={{fontSize:11,color:"var(--text2)",minWidth:36,textAlign:"right"}}>{pct.toFixed(0)}%</div>
               <div className="po-amt">${amount.toLocaleString()}</div>
+              {isTeamEvent&&<div style={{fontFamily:"var(--font-d)",fontSize:15,letterSpacing:.3,width:80,textAlign:"right",color:"var(--red)"}}>${perPerson.toLocaleString()}</div>}
               {winner&&<div style={{fontSize:12,color:"var(--text2)",minWidth:100}}>{winner.name}</div>}
             </div>);
           })}
-          <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",fontSize:12}}>
+          <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",fontSize:12,gap:12,flexWrap:"wrap"}}>
             <span style={{fontWeight:600}}>Total paid out</span>
-            <span style={{fontFamily:"var(--font-d)",fontSize:16}}>${payouts.reduce((a,p)=>a+p.amount,0).toLocaleString()}</span>
+            <div style={{display:"flex",gap:16,alignItems:"center"}}>
+              {isTeamEvent&&<span style={{color:"var(--text2)"}}>Per person: <strong style={{color:"var(--red)"}}>${Math.floor(payouts.reduce((a,p)=>a+p.amount,0)/teamSize).toLocaleString()}</strong></span>}
+              <span style={{fontFamily:"var(--font-d)",fontSize:16}}>${payouts.reduce((a,p)=>a+p.amount,0).toLocaleString()}</span>
+            </div>
           </div>
         </div>
         {tournament.hasBrackets&&(
@@ -294,7 +312,7 @@ function PayoutView({ tournament }) {
 }
 
 function TournamentModal({ existing, onSave, onClose }) {
-  const blank = {name:"",location:"",date:new Date().toISOString().slice(0,10),type:"scratch",format:"fixed",gamesPerBlock:6,numBlocks:1,cutRounds:[{afterBlock:1,keepTop:5,keepTopHalf:false,games:3}],stepladderSpots:5,stepladderSeed:"high",handicapBase:220,handicapFactor:90,entryFee:0,hasBrackets:false,bracketFee:5,bracketGames:3};
+  const blank = {name:"",location:"",date:new Date().toISOString().slice(0,10),type:"scratch",eventType:"singles",format:"fixed",gamesPerBlock:6,numBlocks:1,cutRounds:[{afterBlock:1,keepTop:5,keepTopHalf:false,games:3}],stepladderSpots:5,stepladderSeed:"high",handicapBase:220,handicapFactor:90,entryFee:0,hasBrackets:false,bracketFee:5,bracketGames:3};
   const [f,sf] = useState(existing?{...blank,...existing}:blank);
   const s=(k,v)=>sf(p=>({...p,[k]:v}));
   const uc=(i,k,v)=>{const c=[...f.cutRounds];c[i]={...c[i],[k]:typeof v==="boolean"?v:Number(v)};s("cutRounds",c);};
@@ -318,12 +336,28 @@ function TournamentModal({ existing, onSave, onClose }) {
           <div className="fg"><label className="fl">Date</label><input type="date" value={f.date} onChange={e=>s("date",e.target.value)} /></div>
           <div className="fg"><label className="fl">Entry Fee ($)</label><input type="number" value={f.entryFee} onChange={e=>s("entryFee",Number(e.target.value))} min={0} /></div>
         </div>
-        <div className="fg"><label className="fl">Tournament Type</label>
-          <div className="toggle">
-            <button className={`tbtn${f.type==="scratch"?" on":""}`} onClick={()=>s("type","scratch")}>Scratch</button>
-            <button className={`tbtn${f.type==="handicap"?" on":""}`} onClick={()=>s("type","handicap")}>Handicap</button>
+        <div className="g2">
+          <div className="fg"><label className="fl">Tournament Type</label>
+            <div className="toggle">
+              <button className={`tbtn${f.type==="scratch"?" on":""}`} onClick={()=>s("type","scratch")}>Scratch</button>
+              <button className={`tbtn${f.type==="handicap"?" on":""}`} onClick={()=>s("type","handicap")}>Handicap</button>
+            </div>
+          </div>
+          <div className="fg"><label className="fl">Event Format</label>
+            <div className="toggle">
+              <button className={`tbtn${(f.eventType||"singles")==="singles"?" on":""}`} onClick={()=>s("eventType","singles")}>Singles</button>
+              <button className={`tbtn${f.eventType==="doubles"?" on":""}`} onClick={()=>s("eventType","doubles")}>Doubles</button>
+              <button className={`tbtn${f.eventType==="team"?" on":""}`} onClick={()=>s("eventType","team")}>Team</button>
+            </div>
           </div>
         </div>
+        {(f.eventType==="doubles"||f.eventType==="team")&&(
+          <div className="fg">
+            <label className="fl">Bowlers per Team</label>
+            <input type="number" value={f.teamSize||(f.eventType==="doubles"?2:4)} onChange={e=>s("teamSize",Math.max(2,Math.min(10,Number(e.target.value))))} min={2} max={10} />
+            <span style={{fontSize:11,color:"var(--text2)",marginTop:2}}>Entry fee is per individual. Payouts will show a per-person split.</span>
+          </div>
+        )}
         {f.type==="handicap"&&(
           <div className="g2" style={{background:"#fafafa",padding:".75rem",borderRadius:"var(--r)",border:"1px solid #eee",marginBottom:".875rem"}}>
             <div className="fg" style={{margin:0}}><label className="fl">Handicap Factor (%)</label><input type="number" value={f.handicapFactor} onChange={e=>s("handicapFactor",Number(e.target.value))} min={50} max={100} /><span style={{fontSize:11,color:"var(--text2)",marginTop:2}}>Typically 90%</span></div>
@@ -640,7 +674,7 @@ function StandingsView({ tournament }) {
       <div className="card" style={{padding:0,overflow:"hidden"}}>
         <table className="tbl">
           <thead><tr>
-            <th style={{width:44}}>Pos</th><th>Bowler</th><th>Avg</th>
+            <th style={{width:44}}>Pos</th><th>Bowler</th><th>Book Avg</th><th>Tourn Avg</th>
             {tournament.type==="handicap"&&<th>Hdcp/G</th>}
             {Array.from({length:thru},(_,i)=><th key={i}>R{i+1}</th>)}
             <th>Scratch</th>
@@ -655,7 +689,8 @@ function StandingsView({ tournament }) {
                   <tr style={{opacity:belowCut?.5:1}}>
                     <td><span className={`rank${i===0?" p1":""}`}>{i+1}</span></td>
                     <td><div className="bname">{b.name}</div>{b.laneAssignment&&<div style={{fontSize:10,color:"var(--text2)"}}>Lane {b.laneAssignment}</div>}</td>
-                    <td>{b.curAvg||b.avg}</td>
+                    <td style={{color:"var(--text2)"}}>{b.avg}</td>
+                    <td style={{fontWeight:600}}>{b.games>0?Math.round(b.scratch/b.games):<span style={{color:"#ccc"}}>—</span>}</td>
                     {tournament.type==="handicap"&&<td style={{color:"var(--red)"}}>+{b.hdcpPG}</td>}
                     {Array.from({length:thru},(_,ri)=>{const t=sum(b.scores?.[ri+1]||[]);return <td key={ri}>{t>0?t:<span style={{color:"#ccc"}}>—</span>}</td>;})}
                     <td style={{fontWeight:700}}>{b.scratch>0?b.scratch:<span style={{color:"#ccc"}}>—</span>}</td>
@@ -857,6 +892,7 @@ function TournamentView({ tournament, onUpdate, onBack }) {
         <div><div className="banner-name">{tournament.name}</div><div className="banner-sub">{[tournament.location,tournament.date].filter(Boolean).join(" · ")}</div></div>
         <div className="banner-r">
           <span className={`badge ${tournament.type==="handicap"?"b-blue":"b-blk"}`}>{tournament.type}</span>
+          <span className="badge b-gray">{(tournament.eventType||"singles").charAt(0).toUpperCase()+(tournament.eventType||"singles").slice(1)}</span>
           <span className="badge b-gray">{tournament.format==="fixed"?`${tournament.gamesPerBlock}G`:tournament.format}</span>
           {tournament.entryFee>0&&<span className="badge b-amber">${tournament.entryFee} entry</span>}
           {tournament.hasBrackets&&<span className="badge b-red">${tournament.bracketFee} Brackets</span>}
